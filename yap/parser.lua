@@ -121,7 +121,6 @@ function Parser:tokenize(line)
     if setVar then
         return {type = "set", variable = setVar, expression = setExpr}
     end
-    
     -- emit statement
     -- emit event_name { params }
     local emitEvent, emitParams = trimmed:match("^emit%s+([%w_]+)%s*{([^}]*)}%s*$")
@@ -140,6 +139,131 @@ function Parser:tokenize(line)
         end
         return {type = "emit", event = emitEvent, params = params}
     end
-    
 
+    local onceId = trimmed:match("^%[once%s+([%w_]+)%]$")
+    if onceId then
+        return {type = "once", id = onceId}
+    end
+
+    if trimmed == "[random]" then
+        return {type = "random"}
+    end
+
+    if trimmed == "[choice]" then
+        return {type = "choice"}
+    end
+
+    local optionMatch = trimmed:match("^%*%s*(.+)$")
+    if optionMatch then
+        local option = {type = "option"}
+        local weight, rest = optionMatch:match("^%[weight:%s*(%d+)%]%s*(.+)$")
+        if weight then
+            option.weight = tonumber(weight)
+            optionMatch = rest
+        else
+            option.weight = 1
+        end
+        if optionMatch:match("^@") then
+            local dialogueToken = self:tokenize(optionMatch)
+            if dialogueToken.type == "dialogue" then
+                option.dialogue = dialogueToken
+            end
+        else
+            local text = optionMatch:match('^"([^"]*)"') or optionMatch:match("^'([^']*)'")
+            option.text = text or optionMatch
+            local condition = optionMatch:match("%[if%s+([^%]]+)%]")
+            if condition then
+                option.condition = condition
+            end
+            local target = optionMatch:match("%->%s*([%w_]+)%s*$")
+            if target then
+                option.target = target
+            end
+        end
+        return option
+    end
+
+    -- function call 
+    -- @call function_name
+    local callName = trimmed:match("^@call%s+([%w_]+)%s*$")
+    if callName then
+        return {type = "call", name = callName}
+    end
+
+    local charMatch = trimmed:match("^@([%w_]+)")
+    if charMatch then
+        local dialogue = {
+            type = "dialogue",
+            character = charMatch,
+            portrait_row = 0,
+            portrait_col = 0,
+            metadata = {}
+        }
+        local afterChar = trimmed:sub(#charMatch + 2)
+        local row, col, rest = afterChar:match("^%s*%[%s*(%d+)%s*,%s*(%d+)%s*%](.*)$")
+        if row and col then
+            dialogue.portrait_row = tonumber(row)
+            dialogue.portrait_col = tonumber(col)
+            afterChar = rest
+        end
+        local colonPos = afterChar:find(":")
+        if colonPos then
+            local textPart = afterChar:sub(colonPos + 1):match("^%s*(.+)$")
+            if textPart then
+                local text = textPart:match('^"([^"]*)"') or textPart:match("^'([^']*)'")
+                dialogue.text = text or ""
+                local metadataStr = textPart:match("%[([^%]]+)%]%s*$")
+                if metadataStr then
+                    for key, value in metadataStr:gmatch("([%w_]+)%s*:%s*([^,]+)") do
+                        value = value:match("^%s*(.-)%s*$")
+                        if value == "true" then
+                            dialogue.metadata[key] = true
+                        elseif value == "false" then
+                            dialogue.metadata[key] = false
+                        elseif tonumber(value) then
+                            dialogue.metadata[key] = tonumber(value)
+                        elseif value:match('^".*"$') or value:match("^'.*'$") then
+                            dialogue.metadata[key] = value:sub(2, -2)
+                        else
+                            dialogue.metadata[key] = value
+                        end
+                    end
+                end
+            end
+        end
+        return dialogue
+    end
+
+    return {type = "unknown", raw = trimmed}
 end
+
+function Parser:parse(content, sourcePath, baseDir)
+  local ast = {
+    type = "root",
+    source = sourcePath,
+    imports = {},
+    variables = {},
+    characters = {},
+    functions = {},
+    labels = {},
+    nodes = {}
+  }
+
+  return ast
+end
+
+function Parser:parseFile(filepath, baseDir)
+    baseDir = baseDir or ""
+    local fullPath = baseDir .. filepath
+    if self.importedFiles[fullPath] then
+        return nil, "Circular import detected: " .. fullPath
+    end
+    self.importedFiles[fullPath] = true
+    local content, err = readFile(fullPath)
+    if not content then
+        return nil, err
+    end
+    local fileDir = getDirectory(fullPath)
+    return self:parse(content, fullPath, fileDir)
+end
+
