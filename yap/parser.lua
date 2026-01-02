@@ -29,7 +29,6 @@ function Parser:tokenize(line)
   if trimmed == "" or trimmed:match("^%-%-") then
     return {type = "empty"}
   end
-  
   -- import syntax
   -- usage:
   -- @import "file.yap"
@@ -37,7 +36,6 @@ function Parser:tokenize(line)
   if importPath then
       return {type = "import", path = importPath}
   end
-  
   -- variables
   -- usage:
   -- @var name = "Alice"
@@ -91,7 +89,6 @@ function Parser:tokenize(line)
     if jumpTarget then
         return {type = "jump", target = jumpTarget}
     end
- 
   -- conditionals.
   -- [if shop_open]
   --   @call greet_player
@@ -237,21 +234,6 @@ function Parser:tokenize(line)
     return {type = "unknown", raw = trimmed}
 end
 
-function Parser:parse(content, sourcePath, baseDir)
-  local ast = {
-    type = "root",
-    source = sourcePath,
-    imports = {},
-    variables = {},
-    characters = {},
-    functions = {},
-    labels = {},
-    nodes = {}
-  }
-
-  return ast
-end
-
 function Parser:parseFile(filepath, baseDir)
     baseDir = baseDir or ""
     local fullPath = baseDir .. filepath
@@ -265,5 +247,181 @@ function Parser:parseFile(filepath, baseDir)
     end
     local fileDir = getDirectory(fullPath)
     return self:parse(content, fullPath, fileDir)
+end
+
+
+function Parser:parse(content, sourcePath, baseDir)
+  local ast = {
+    type = "root",
+    source = sourcePath,
+    imports = {},
+    variables = {},
+    characters = {},
+    functions = {},
+    labels = {},
+    nodes = {}
+  }
+
+  local lines = {}
+  for line in content:gmatch("([^\n]*)\n?") do
+      table.insert(lines, line)
+  end
+
+  local i = 1
+  local currCharacter = nil
+  local currFunction = nil
+
+  local blockStack = {}
+
+  local function getCurrentNodes()
+      if #blockStack > 0 then
+          return blockStack[#blockStack].nodes
+      elseif currFunction then
+          return currFunction.body
+      else
+          return ast.nodes
+      end
+  end
+
+  while i <= #lines do
+    local line = lines[i]
+    local token = self:tokenize(line)
+    token.line = i
+    token.source = sourcePath
+
+    if token.type == "empty" then
+      -- do nothing
+    elseif token.type == "import" then
+      local importedAst, importErr = self:parseFile(token.path, baseDir)
+      if not importedAst then
+          return nil, sourcePath .. ":" .. i .. ": " .. (importErr or "Import failed")
+      end
+      table.insert(ast.imports, token.path)
+      for k, v in pairs(importedAst.variables) do ast.variables[k] = v end
+      for k, v in pairs(importedAst.characters) do ast.characters[k] = v end
+      for k, v in pairs(importedAst.functions) do ast.functions[k] = v end
+      for k, v in pairs(importedAst.labels) do ast.labels[k] = v end
+    elseif token.type == "var_def" then
+      local value = token.value
+      if value == "true" then value = true
+      elseif value == "false" then value = false
+      elseif tonumber(value) then value = tonumber(value)
+      elseif value:match('^".*"$') or value:match("^'.*'$") then
+          value = value:sub(2, -2)
+      end
+      ast.variables[token.name] = value
+
+    elseif token.type == "function_start" then
+      currFunction = { name = token.name, body = {} }
+      currCharacter = nil
+    elseif token.type == "block_end" then
+      if currFunction then
+          ast.functions[currFunction.name] = currFunction
+          currFunction = nil
+      end
+    elseif token.type == "label" then
+      currCharacter = nil
+      local labelNode = { type = "label", name = token.name, line = i, source = sourcePath }
+      ast.labels[token.name] = #ast.nodes + 1
+      table.insert(getCurrentNodes(), labelNode)
+    elseif token.type == "character_start" then
+      currCharacter = { id = token.id, properties = {} }
+    elseif token.type == "character_prop" then
+      if currCharacter then
+        local value = token.value
+          if token.name == "spritesheet" then
+              local path, w, h, rows, cols = value:match('%[%s*"([^"]+)"%s*,%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*,%s*(%d+)%s*%]')
+              if path then
+                  value = {path, tonumber(w), tonumber(h), tonumber(rows), tonumber(cols)}
+              end
+          elseif tonumber(value) then
+              value = tonumber(value)
+          elseif value:match('^".*"$') or value:match("^'.*'$") then
+              value = value:sub(2, -2)
+          end
+          currCharacter.properties[token.name] = value
+      end
+    elseif token.type == "if" then
+      currCharacter = nil
+      local ifBlock = { type = "if_block", branches = {{ condition = token.condition, nodes = {} }}, line = i }
+      table.insert(getCurrentNodes(), ifBlock)
+      table.insert(blockStack, {type = "if", block = ifBlock, nodes = ifBlock.branches[1].nodes})
+    elseif token.type == "elseif" then
+      if #blockStack > 0 and blockStack[#blockStack].type == "if" then
+          local ifBlock = blockStack[#blockStack].block
+          local newBranch = {condition = token.condition, nodes = {}}
+          table.insert(ifBlock.branches, newBranch)
+          blockStack[#blockStack].nodes = newBranch.nodes
+      end
+    elseif token.type == "else" then
+      if #blockStack > 0 and blockStack[#blockStack].type == "if" then
+          local ifBlock = blockStack[#blockStack].block
+          local elseBranch = {condition = nil, nodes = {}}
+          table.insert(ifBlock.branches, elseBranch)
+          blockStack[#blockStack].nodes = elseBranch.nodes
+      end
+    elseif token.type == "end" then
+      if #blockStack > 0 then
+          table.remove(blockStack)
+      end
+    elseif token.type == "once" then
+      currCharacter = nil
+      local onceBlock = { type = "once_block", id = token.id, nodes = {}, line = i }
+      table.insert(getCurrentNodes(), onceBlock)
+      table.insert(blockStack, {type = "once", block = onceBlock, nodes = onceBlock.nodes})
+    elseif token.type == "random" then
+      currCharacter = nil
+      local randomBlock = { type = "random_block", options = {}, line = i }
+      table.insert(getCurrentNodes(), randomBlock)
+      table.insert(blockStack, {type = "random", block = randomBlock, nodes = randomBlock.options})
+    elseif token.type == "choice" then
+      currCharacter = nil
+      local choiceBlock = { type = "choice_block", options = {}, line = i }
+      table.insert(getCurrentNodes(), choiceBlock)
+      table.insert(blockStack, {type = "choice", block = choiceBlock, nodes = choiceBlock.options})
+    elseif token.type == "option" then
+      if #blockStack > 0 then
+        local current = blockStack[#blockStack]
+        if current.type == "random" then
+            table.insert(current.block.options, {
+                weight = token.weight,
+                dialogue = token.dialogue,
+                line = i
+            })
+        elseif current.type == "choice" then
+            table.insert(current.block.options, {
+                text = token.text,
+                condition = token.condition,
+                target = token.target,
+                weight = token.weight,
+                line = i
+            })
+        end
+      end
+    elseif token.type == "dialogue" then
+      currCharacter = nil
+      table.insert(getCurrentNodes(), token)
+    elseif token.type == "set" then
+      currCharacter = nil
+      table.insert(getCurrentNodes(), token)
+    elseif token.type == "emit" then
+      currCharacter = nil
+      table.insert(getCurrentNodes(), token)
+    elseif token.type == "jump" then
+      currCharacter = nil
+      table.insert(getCurrentNodes(), token)
+    elseif token.type == "call" then
+        currCharacter = nil
+        table.insert(getCurrentNodes(), token)
+    end
+
+    if currCharacter and token.type ~= "character_start" and token.type ~= "character_prop" and token.type ~= "empty" then
+            ast.characters[currCharacter.id] = currCharacter.properties
+            currCharacter = nil
+     end
+
+    i = i + 1
+  end
+  return ast
 end
 
