@@ -325,6 +325,9 @@ function Parser:parse(content, sourcePath, baseDir)
       ast.labels[token.name] = #ast.nodes + 1
       table.insert(getCurrentNodes(), labelNode)
     elseif token.type == "character_start" then
+      if currCharacter then
+        ast.characters[currCharacter.id] = currCharacter.properties
+      end
       currCharacter = { id = token.id, properties = {} }
     elseif token.type == "character_prop" then
       if currCharacter then
@@ -422,6 +425,12 @@ function Parser:parse(content, sourcePath, baseDir)
 
     i = i + 1
   end
+
+  if currCharacter then
+    ast.characters[currCharacter.id] = currCharacter.properties
+  end
+
   return ast
 end
 
+return Parser
