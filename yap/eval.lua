@@ -27,6 +27,7 @@ function Evaulator:applyOp(output, op)
   if o == "not" then
     local a = table.remove(output)
     table.insert(output, not a)
+    return
   end
 
   local b = table.remove(output)
@@ -94,7 +95,8 @@ function Evaulator:tokenize(expr)
       table.insert(tokens, {type = "operator", value = char})
       i = i + 1
     elseif char == "," then
-      table.insert(tokens, {type == "comma", value = ","})
+      table.insert(tokens, {type = "comma", value = ","})
+      i = i + 1
     elseif char:match("[%a_]") then
       local ident = ""
       while i <= len and expr:sub(i,i):match("[%w_]") do
