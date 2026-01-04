@@ -9,7 +9,7 @@
 @narrator: "You enter the shop."
 @call greet
 
-[if gold >= 50]
+[if gold >= 20.0]
   @alice: "You look like you can afford something!"
 [else]
   @alice: "Browsing today?"
