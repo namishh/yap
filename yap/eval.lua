@@ -19,6 +19,7 @@ Evaulator.__index = Evaulator
 function Evaulator.new(state)
   local self = setmetatable({}, Evaulator)
   self.state = state
+  return self
 end
 
 function Evaulator:applyOp(output, op)
@@ -115,6 +116,7 @@ function Evaulator:tokenize(expr)
       i = i + 1
     end
   end
+  return tokens
 end
 
 function Evaulator:evaluate(expr)
