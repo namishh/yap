@@ -30,6 +30,7 @@ function T.assertsEqual(expected, actual, msg)
 end
 
 function T:report()
+  print()
   print(string.format("Passed: %d", self.passed))
   print(string.format("Failed: %d", self.failed))
   print(string.format("Total:  %d", self.passed + self.failed))

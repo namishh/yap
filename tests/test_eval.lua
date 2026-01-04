@@ -59,3 +59,5 @@ test("addition", function ()
   local res = eval:evaluate("34 + 33")
   T.assertsEqual(67, res)
 end)
+
+T:report()
