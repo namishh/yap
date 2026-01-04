@@ -34,19 +34,19 @@ function Evaulator:applyOp(output, op)
   local result
 
 
-  if op == "+" then result = (tonumber(a) or 0) + (tonumber(b) or 0)
-  elseif op == "-" then result = (tonumber(a) or 0) - (tonumber(b) or 0)
-  elseif op == "*" then result = (tonumber(a) or 0) * (tonumber(b) or 0)
-  elseif op == "/" then result = (tonumber(a) or 0) / (tonumber(b) or 0)
-  elseif op == "%" then result = (tonumber(a) or 0) % (tonumber(b) or 0)
-  elseif op == "==" then result = a == b
-  elseif op == "!=" then result = a ~= b
-  elseif op == ">" then result = (tonumber(a) or 0) > (tonumber(b) or 0)
-  elseif op == "<" then result = (tonumber(a) or 0) < (tonumber(b) or 0)
-  elseif op == ">=" then result = (tonumber(a) or 0) >= (tonumber(b) or 0)
-  elseif op == "<=" then result = (tonumber(a) or 0) <= (tonumber(b) or 0)
-  elseif op == "and" then result = a and b
-  elseif op == "or" then result = a or b
+  if o == "+" then result = (tonumber(a) or 0) + (tonumber(b) or 0)
+  elseif o == "-" then result = (tonumber(a) or 0) - (tonumber(b) or 0)
+  elseif o == "*" then result = (tonumber(a) or 0) * (tonumber(b) or 0)
+  elseif o == "/" then result = (tonumber(a) or 0) / (tonumber(b) or 0)
+  elseif o == "%" then result = (tonumber(a) or 0) % (tonumber(b) or 0)
+  elseif o == "==" then result = a == b
+  elseif o == "!=" then result = a ~= b
+  elseif o == ">" then result = (tonumber(a) or 0) > (tonumber(b) or 0)
+  elseif o == "<" then result = (tonumber(a) or 0) < (tonumber(b) or 0)
+  elseif o == ">=" then result = (tonumber(a) or 0) >= (tonumber(b) or 0)
+  elseif o == "<=" then result = (tonumber(a) or 0) <= (tonumber(b) or 0)
+  elseif o == "and" then result = a and b
+  elseif o == "or" then result = a or b
   end
 
   table.insert(output, result)
@@ -125,7 +125,7 @@ function Evaulator:evaluate(expr)
   local operators = {}
 
   local i = 1
-  while i < #tokens do
+  while i <= #tokens do
     local token = tokens[i]
     if token.type == "number" or token.type == "string" or token.type == "boolean" then
       table.insert(output, token.value)
