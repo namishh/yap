@@ -1,9 +1,4 @@
-- character 
-- function directory
 - runtime
-- managing history
-- serializer
-- signals
 - public api 
 - (maybe) an api only way
 - flag for waiting for emitted signal to end
