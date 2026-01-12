@@ -1,4 +1,5 @@
-local Eval = require("yap.eval")
+local PATH = (...):match("(.-)[^%.]+$") or ""
+local Eval = require(PATH .. "eval")
 
 local Runtime = {}
 Runtime.__index = Runtime

@@ -1,11 +1,13 @@
-local Signals = require("yap.signals")
-local State = require("yap.state")
-local History = require("yap.history")
-local Characters = require("yap.characters")
-local Functions = require("yap.functions")
-local Parser = require("yap.parser")
-local Runtime = require("yap.runtime")
-local Serializer = require("yap.serializer")
+local PATH = (...):match("(.-)[^%.]+$") or ""
+
+local Signals = require(PATH .. "signals")
+local State = require(PATH .. "state")
+local History = require(PATH .. "history")
+local Characters = require(PATH .. "chars")
+local Functions = require(PATH .. "functions")
+local Parser = require(PATH .. "parser")
+local Runtime = require(PATH .. "runtime")
+local Serializer = require(PATH .. "serializer")
 
 local Yap = {}
 Yap.__index = Yap
