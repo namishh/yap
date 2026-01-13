@@ -1,0 +1,167 @@
+YAP - Dialogue System for Love2D
+
+A dialogue flow controller that parses .yap files and emits signals.
+Not a UI library - you handle rendering.
+
+
+INSTALLATION
+------------
+Copy the yap/ folder into your project.
+
+    local yap = require("yap")
+
+
+BASIC USAGE
+-----------
+    yap:load("dialogue.yap")
+    yap:start("label_name")
+    
+    if not yap:isWaitingForChoice() and not yap:isComplete() then
+        yap:advance()
+    end
+    
+    yap:choose(1) 
+
+
+.YAP FILE SYNTAX
+----------------
+
+# Comments
+    -- This is a comment
+
+# Variables
+    $gold = 100
+    $name = "Hero"
+    $has_key = false
+
+# Characters
+    [character bob]
+    name: "Bob the Shopkeeper"
+    spritesheet: ["sprites/bob.png", 32, 32, 4, 4]
+
+# Labels (jump targets)
+    # start
+    # shop_menu
+
+# Dialogue
+    @character: "Text here"
+    @bob [1, 2]: "With portrait row 1, col 2"
+    @bob: "Text" [mood: happy, speed: slow]
+
+# Jumps
+    -> label_name
+
+# Choices
+    [choice]
+      * "Option text" -> target_label
+      * "Conditional" [if gold > 10] -> buy
+    [end]
+
+# Conditionals
+    [if gold >= 100]
+      @bob: "You're rich!"
+    [elseif gold >= 50]
+      @bob: "Not bad."
+    [else]
+      @bob: "You're broke."
+    [end]
+
+# Variables in dialogue
+    @bob: "You have {gold} gold."
+
+# Set variables
+    set gold = gold - 10
+    set has_key = true
+
+# Math operations
+    set gold = gold + random(1, 10)
+
+# Once blocks (run only first time)
+    [once first_meeting]
+      @bob: "Nice to meet you!"
+    [end]
+
+# Random dialogue
+    [random]
+      * @bob: "Hello!"
+      * @bob: "Hi there!"
+      * @bob: "Welcome!" (weight: 2)
+    [end]
+
+# Emit signals
+    emit door_opened { room: "kitchen" }
+
+# Await (pause until resume called)
+    await cutscene_done { duration: 2 }
+
+# Functions
+    @function greet
+      @bob: "Hello!"
+    @end
+    
+    @call greet
+
+# Imports
+    @import "characters.yap"
+
+
+LUA API
+
+# Loading
+    yap:load("file.yap")
+    yap:loadString(yapContent, "name")
+
+# Flow control
+    yap:start("label")
+    yap:advance()
+    yap:choose(index)
+    yap:reset()
+
+# State queries
+    yap:isComplete()
+    yap:isWaitingForChoice()
+    yap:getCurrentChoices()
+    yap:isAwaiting()
+    yap:getAwaitEvent()
+
+# Pause/Resume
+    yap:pause("reason")
+    yap:resume()
+
+# Variables
+    yap:setVar("name", value)
+    yap:getVar("name")
+    yap:hasVar("name")
+    yap:getAllVars()
+
+# History
+    yap:hasSeen("once_id")
+    yap:getVisitCount("label")
+    yap:forget("id")
+
+# Save/Load
+    local data = yap:serialize()
+    yap:deserialize(data)
+
+
+EVENTS
+------
+Subscribe with yap:on("event", callback)
+
+    on_line_start    { character, character_name, text, portrait_row, portrait_col, metadata }
+    on_line_end      { character }
+    on_choice_presented  { options }
+    on_choice_made   { index, text, target }
+    on_var_changed   { variable, oldValue, newValue }
+    on_dialogue_end  {}
+    on_pause         { reason }
+    on_await_complete    { event }
+    
+    -- Custom events from emit:
+    your_event_name  { your: "params" }
+
+
+EXAMPLE
+-------
+See demo/ folder for a complete shop example.
+
