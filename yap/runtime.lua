@@ -21,6 +21,8 @@ function Runtime.new(signals, state, history, characters, functions)
   self.currentChoices = nil
   self.complete = false
   self.callStack = {}
+  self.awaiting = false
+  self.awaitEvent = nil
   return self
 end
 
@@ -122,6 +124,12 @@ function Runtime:processNode()
     self.signals:emit(node.event, node.params)
     return nil
 
+  elseif node.type == "await" then
+    self.awaiting = true
+    self.awaitEvent = node.event
+    self.signals:emit(node.event, node.params)
+    return { type = "await", event = node.event }
+
   elseif node.type == "jump" then
     self.callStack = {}
     self.nodes = self.ast.nodes
@@ -221,6 +229,9 @@ end
 
 function Runtime:advance()
   if self.complete then return nil end
+  if self.awaiting then
+    return { type = "await", event = self.awaitEvent }
+  end
   if self.waitingForChoice then
     return { type = "choice", choices = self.currentChoices.options }
   end
@@ -311,6 +322,31 @@ function Runtime:reset()
   self.currentChoices = nil
   self.complete = false
   self.callStack = {}
+  self.awaiting = false
+  self.awaitEvent = nil
+end
+
+function Runtime:isAwaiting()
+  return self.awaiting
+end
+
+function Runtime:getAwaitEvent()
+  return self.awaitEvent
+end
+
+function Runtime:pause(reason)
+  self.awaiting = true
+  self.awaitEvent = reason or "paused"
+  self.signals:emit("on_pause", { reason = self.awaitEvent })
+end
+
+function Runtime:resume()
+  if not self.awaiting then return nil end
+  self.awaiting = false
+  local event = self.awaitEvent
+  self.awaitEvent = nil
+  self.signals:emit("on_await_complete", { event = event })
+  return self:advance()
 end
 
 return Runtime

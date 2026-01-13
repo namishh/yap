@@ -10,6 +10,13 @@ HAS_SWORD = false
 HAS_SHIELD = false
 HAS_POTION = false
 
+local bgColor = {0.12, 0.1, 0.15}
+local bgTargetColor = nil
+local bgStartColor = nil
+local bgTransitionTime = 0
+local bgTransitionElapsed = 0
+local isTransitioning = false
+
 function love.load()
   love.window.setTitle("Shop Demo")
   love.window.setMode(800, 600)
@@ -39,23 +46,49 @@ function love.load()
     end
   end)
   
+  yap:on("exit_transition", function(data)
+    bgStartColor = {bgColor[1], bgColor[2], bgColor[3]}
+    bgTargetColor = {0.03, 0.07, 0.04}
+    bgTransitionTime = data.duration or 2
+    bgTransitionElapsed = 0
+    isTransitioning = true
+  end)
+  
   local ok, err = yap:load("demo/shop.yap")
   if not ok then
     print("ERROR: " .. err)
     return
   end
   
-  -- Set initial values from Lua vars
   yap:setVar("gold", GOLD)
   
   yap:start("enter_shop")
 end
 
 function love.update(dt)
+  if isTransitioning and bgTargetColor then
+    bgTransitionElapsed = bgTransitionElapsed + dt
+    local t = math.min(bgTransitionElapsed / bgTransitionTime, 1)
+    t = t < 0.5 and 2 * t * t or 1 - math.pow(-2 * t + 2, 2) / 2
+    
+    bgColor[1] = bgStartColor[1] + (bgTargetColor[1] - bgStartColor[1]) * t
+    bgColor[2] = bgStartColor[2] + (bgTargetColor[2] - bgStartColor[2]) * t
+    bgColor[3] = bgStartColor[3] + (bgTargetColor[3] - bgStartColor[3]) * t
+    
+    if bgTransitionElapsed >= bgTransitionTime then
+      isTransitioning = false
+      bgColor = {bgTargetColor[1], bgTargetColor[2], bgTargetColor[3]}
+      bgTargetColor = nil
+      bgStartColor = nil
+      if yap:isAwaiting() then
+        yap:resume()
+      end
+    end
+  end
 end
 
 function love.draw()
-  love.graphics.setBackgroundColor(0.12, 0.1, 0.15)
+  love.graphics.setBackgroundColor(bgColor[1], bgColor[2], bgColor[3])
   love.graphics.setColor(0.2, 0.18, 0.25)
   love.graphics.rectangle("fill", 0, 0, 800, 50)
   love.graphics.setFont(titleFont)
@@ -105,6 +138,9 @@ function love.draw()
         cy = cy + choiceHeight
       end
     end
+  elseif yap:isAwaiting() then
+    love.graphics.setColor(0.5, 0.6, 0.5)
+    local event = yap:getAwaitEvent() or "transition"
   elseif yap:isComplete() then
     love.graphics.setColor(0.4, 0.6, 0.4)
     love.graphics.print("Dialogue complete. Press R to restart or Q to quit.", 30, 550)
@@ -134,10 +170,13 @@ function love.keypressed(key)
     yap:setVar("items_bought", 0)
     yap:forget("first_visit")
     yap:forget("first_exit")
-    print("\n=== Restarted ===\n")
+    bgColor = {0.12, 0.1, 0.15}
+    bgTargetColor = nil
+    bgStartColor = nil
+    isTransitioning = false
     yap:start("enter_shop")
   elseif key == "space" then
-    if not yap:isWaitingForChoice() and not yap:isComplete() then
+    if not yap:isWaitingForChoice() and not yap:isComplete() and not yap:isAwaiting() then
       yap:advance()
     end
   elseif key >= "1" and key <= "9" then

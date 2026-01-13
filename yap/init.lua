@@ -88,6 +88,22 @@ function Yap:reset()
   self.runtime:reset()
 end
 
+function Yap:isAwaiting()
+  return self.runtime:isAwaiting()
+end
+
+function Yap:getAwaitEvent()
+  return self.runtime:getAwaitEvent()
+end
+
+function Yap:pause(reason)
+  self.runtime:pause(reason)
+end
+
+function Yap:resume()
+  return self.runtime:resume()
+end
+
 function Yap:getVar(name)
   return self.state:get(name)
 end

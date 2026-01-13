@@ -137,6 +137,25 @@ function Parser:tokenize(line)
         return {type = "emit", event = emitEvent, params = params}
     end
 
+    -- await statement (emit + wait for resume)
+    -- await event_name { params }
+    local awaitEvent, awaitParams = trimmed:match("^await%s+([%w_]+)%s*{([^}]*)}%s*$")
+    if awaitEvent then
+        local params = {}
+        for key, value in awaitParams:gmatch("([%w_]+)%s*:%s*([^,}]+)") do
+            value = value:match("^%s*(.-)%s*$")
+            local num = tonumber(value)
+            if num then
+                params[key] = num
+            elseif value:match('^".*"$') or value:match("^'.*'$") then
+                params[key] = value:sub(2, -2)
+            else
+                params[key] = value
+            end
+        end
+        return {type = "await", event = awaitEvent, params = params}
+    end
+
     local onceId = trimmed:match("^%[once%s+([%w_]+)%]$")
     if onceId then
         return {type = "once", id = onceId}
@@ -408,6 +427,9 @@ function Parser:parse(content, sourcePath, baseDir)
       currCharacter = nil
       table.insert(getCurrentNodes(), token)
     elseif token.type == "emit" then
+      currCharacter = nil
+      table.insert(getCurrentNodes(), token)
+    elseif token.type == "await" then
       currCharacter = nil
       table.insert(getCurrentNodes(), token)
     elseif token.type == "jump" then

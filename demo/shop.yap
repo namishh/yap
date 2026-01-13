@@ -271,6 +271,8 @@ emit item_purchased { item: "potion", cost: 15 }
   @inner_voice: "I'll keep that in mind."
 [end]
 
+await exit_transition { duration: 2 }
+
 [random]
   * @narrator: "You step back out into the street."
   * @narrator: "You push through the door into the daylight."
