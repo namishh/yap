@@ -27,4 +27,11 @@ function Signals:off(event, callback)
   end
 end
 
+function Signals:emit(event, data)
+  if not self.listeners[event] then return end
+  for _, callback in ipairs(self.listeners[event]) do
+    callback(data)
+  end
+end
+
 return Signals

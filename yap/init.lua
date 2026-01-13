@@ -1,4 +1,5 @@
-local PATH = (...):match("(.-)[^%.]+$") or ""
+local PATH = (...):match("(.-)[^%.]+$")
+if PATH == "" then PATH = (...) .. "." end
 
 local Signals = require(PATH .. "signals")
 local State = require(PATH .. "state")
@@ -129,4 +130,8 @@ function Yap:deserialize(data)
   return self.serializer:deserialize(data)
 end
 
-return Yap
+local default = Yap.new()
+
+return setmetatable({
+  new = Yap.new,
+}, { __index = default })

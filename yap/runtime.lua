@@ -1,4 +1,5 @@
-local PATH = (...):match("(.-)[^%.]+$") or ""
+local PATH = (...):match("(.-)[^%.]+$")
+if PATH == "" then PATH = (...) .. "." end
 local Eval = require(PATH .. "eval")
 
 local Runtime = {}
@@ -122,6 +123,8 @@ function Runtime:processNode()
     return nil
 
   elseif node.type == "jump" then
+    self.callStack = {}
+    self.nodes = self.ast.nodes
     self:jumpTo(node.target)
     return self:processNode()
 

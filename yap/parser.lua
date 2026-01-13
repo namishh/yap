@@ -433,4 +433,8 @@ function Parser:parse(content, sourcePath, baseDir)
   return ast
 end
 
+function Parser:reset()
+  self.importedFiles = {}
+end
+
 return Parser
