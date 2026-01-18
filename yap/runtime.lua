@@ -412,7 +412,23 @@ function Runtime:choose(choiceIndex)
 
   if chosen.target then
     self:jumpTo(chosen.target)
-    return self:processNode()
+    local data = self:processNode()
+    while data == nil and not self.complete and not self.waitingForChoice and not self.awaiting do
+      self.position = self.position + 1
+      if self.position > #self.nodes then
+        if #self.callStack > 0 then
+          local context = table.remove(self.callStack)
+          self.nodes = context.nodes
+          self.position = context.position + 1
+        else
+          self.complete = true
+          self.signals:emit("on_dialogue_end", {})
+          return nil
+        end
+      end
+      data = self:processNode()
+    end
+    return data
   end
   return self:advance()
 end

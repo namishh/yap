@@ -9,6 +9,7 @@
 
 # enter_shop
 set visit_count = visit_count + 1
+set items_bought = 0
 
 [once first_visit]
   @narrator: "You push open the creaky wooden door."
