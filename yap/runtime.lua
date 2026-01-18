@@ -169,7 +169,7 @@ function Runtime:processNode()
     end
     return nil
 
-  elseif node.type == "random_block" then
+  elseif node.type == "random_block" or node.type == "random_seq_block" then
     local totalWeight = 0
     for _, option in ipairs(node.options) do
       totalWeight = totalWeight + (option.weight or 1)
@@ -187,19 +187,26 @@ function Runtime:processNode()
       end
     end
 
-    if selected and selected.dialogue then
-      local char = self.characters:get(selected.dialogue.character)
-      local data = {
-        type = "dialogue",
-        character = selected.dialogue.character,
-        character_name = char and char.name or selected.dialogue.character,
-        text = self:replaceVars(selected.dialogue.text),
-        portrait_row = selected.dialogue.portrait_row or 0,
-        portrait_col = selected.dialogue.portrait_col or 0,
-        metadata = selected.dialogue.metadata or {}
-      }
-      self.signals:emit("on_line_start", data)
-      return data
+    if selected then
+      if selected.nodes and #selected.nodes > 0 then
+        table.insert(self.callStack, { nodes = self.nodes, position = self.position })
+        self.nodes = selected.nodes
+        self.position = 0
+        return nil
+      elseif selected.dialogue then
+        local char = self.characters:get(selected.dialogue.character)
+        local data = {
+          type = "dialogue",
+          character = selected.dialogue.character,
+          character_name = char and char.name or selected.dialogue.character,
+          text = self:replaceVars(selected.dialogue.text),
+          portrait_row = selected.dialogue.portrait_row or 0,
+          portrait_col = selected.dialogue.portrait_col or 0,
+          metadata = selected.dialogue.metadata or {}
+        }
+        self.signals:emit("on_line_start", data)
+        return data
+      end
     end
     return nil
 
@@ -220,6 +227,73 @@ function Runtime:processNode()
       self.currentChoices = { options = validChoices, originalOptions = node.options }
       self.signals:emit("on_choice_presented", validChoices)
       return { type = "choice", choices = validChoices }
+    end
+    return nil
+
+  elseif node.type == "set_api" then
+    local oldValue = self.state:get(node.variable)
+    local newValue
+    if type(node.valueOrFn) == "function" then
+      newValue = node.valueOrFn(oldValue)
+    else
+      newValue = node.valueOrFn
+    end
+    self.state:set(node.variable, newValue)
+    self.signals:emit("on_var_changed", {
+      variable = node.variable,
+      oldValue = oldValue,
+      newValue = newValue
+    })
+    return nil
+
+  elseif node.type == "choice_block_api" then
+    local stateSnapshot = self.state:getAll()
+    local validChoices = {}
+    for idx, option in ipairs(node.options) do
+      local conditionMet = true
+      if option.condition then
+        if type(option.condition) == "function" then
+          conditionMet = option.condition(stateSnapshot)
+        else
+          conditionMet = self:evalCondition(option.condition)
+        end
+      end
+      if conditionMet then
+        table.insert(validChoices, {
+          index = idx,
+          text = self:replaceVars(option.text),
+          target = option.target
+        })
+      end
+    end
+
+    if #validChoices > 0 then
+      self.waitingForChoice = true
+      self.currentChoices = { options = validChoices, originalOptions = node.options }
+      self.signals:emit("on_choice_presented", validChoices)
+      return { type = "choice", choices = validChoices }
+    end
+    return nil
+
+  elseif node.type == "if_block_api" then
+    local stateSnapshot = self.state:getAll()
+    for _, branch in ipairs(node.branches) do
+      local conditionMet = true
+      if branch.condition ~= nil then
+        if type(branch.condition) == "function" then
+          conditionMet = branch.condition(stateSnapshot)
+        else
+          conditionMet = self:evalCondition(branch.condition)
+        end
+      end
+      if conditionMet then
+        if #branch.nodes > 0 then
+          table.insert(self.callStack, { nodes = self.nodes, position = self.position })
+          self.nodes = branch.nodes
+          self.position = 0
+        end
+        return nil
+      end
     end
     return nil
   end

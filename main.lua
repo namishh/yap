@@ -60,9 +60,109 @@ function love.load()
     return
   end
   
-  yap:setVar("gold", GOLD)
+  addPurchaseLabels()
   
+  yap:setVar("gold", GOLD)
   yap:start("enter_shop")
+end
+
+function addPurchaseLabels()
+  
+  local buy_sword = yap.label("buy_sword")
+    :when(yap.lt("gold", 30), function(b)
+      b:say("bob", "That'll be 30 gold.")
+      b:say("inner_voice", "I only have {gold} gold... not enough.")
+      b:say("player", "Actually, I don't have enough...")
+      b:say("bob", "No worries, come back when you've got the coin!")
+      b:jump("shop_menu")  -- jumps back to .yap label
+    end)
+    :say("player", "I'll take that sword.")
+    :randomSeq({
+      { { "bob", "Excellent choice! A fine blade, that one." } },
+      { { "bob", "Ah, you've got good taste! That's quality steel." } },
+      { { "bob", "A wise purchase! This blade has seen many battles." } },
+    })
+    :set("gold", function(g) return g - 30 end)
+    :set("has_sword", true)
+    :set("items_bought", function(n) return n + 1 end)
+    :say("narrator", "Bob hands you a gleaming steel sword.")
+    :randomSeq({
+      { { "bob", "30 gold, pleasure doing business!" } },
+      { { "bob", "That's 30 gold. Take care of it!" } },
+      { { "bob", "30 gold changes hands. She's all yours now." } },
+    })
+    :randomSeq({
+      { { "inner_voice", "This feels good in my hand." } },
+      { { "inner_voice", "Now I can defend myself properly." } },
+      { { "inner_voice", "A fine weapon indeed." } },
+    })
+    :emit("item_purchased", { item = "sword", cost = 30 })
+    :jump("after_purchase")  
+  
+  
+  local buy_shield = yap.label("buy_shield")
+    :when(yap.lt("gold", 25), function(b)
+      b:say("bob", "That shield's 25 gold.")
+      b:say("inner_voice", "I'm {gold} gold short... blast.")
+      b:say("player", "Hmm, let me think about it...")
+      b:say("bob", "Take your time!")
+      b:jump("shop_menu")
+    end)
+    :say("player", "I'd like that shield.")
+    :randomSeq({
+      { { "bob", "Smart! Protection is important." } },
+      { { "bob", "Good thinking! Can't put a price on safety." } },
+      { { "bob", "Solid oak, reinforced with iron. You won't regret it." } },
+    })
+    :set("gold", function(g) return g - 25 end)
+    :set("has_shield", true)
+    :set("items_bought", function(n) return n + 1 end)
+    :say("narrator", "You strap the sturdy wooden shield to your arm.")
+    :randomSeq({
+      { { "bob", "25 gold, thank you kindly!" } },
+      { { "bob", "That's 25 gold. May it serve you well!" } },
+      { { "bob", "25 gold it is. Stay safe out there!" } },
+    })
+    :randomSeq({
+      { { "inner_voice", "I feel safer already." } },
+      { { "inner_voice", "This should block a few blows." } },
+      { { "inner_voice", "Solid and dependable. Just what I needed." } },
+    })
+    :emit("item_purchased", { item = "shield", cost = 25 })
+    :jump("after_purchase")
+  
+  local buy_potion = yap.label("buy_potion")
+    :when(yap.lt("gold", 15), function(b)
+      b:say("bob", "Potions are 15 gold each.")
+      b:say("inner_voice", "Can't even afford a potion with {gold} gold...")
+      b:say("player", "Maybe next time.")
+      b:say("bob", "They'll be here when you need 'em!")
+      b:jump("shop_menu")
+    end)
+    :say("player", "One potion, please.")
+    :randomSeq({
+      { { "bob", "Wise to be prepared!" } },
+      { { "bob", "Always good to have one of these on hand." } },
+      { { "bob", "Brewed it myself! Well, my cousin did. Same thing." } },
+    })
+    :set("gold", function(g) return g - 15 end)
+    :set("has_potion", true)
+    :set("items_bought", function(n) return n + 1 end)
+    :say("narrator", "Bob places a small red vial in your hand.")
+    :randomSeq({
+      { { "bob", "15 gold. Use it well!" } },
+      { { "bob", "That's 15 gold. Drink it when things get rough!" } },
+      { { "bob", "15 gold, friend. Hope you never need it!" } },
+    })
+    :randomSeq({
+      { { "inner_voice", "Could save my life someday." } },
+      { { "inner_voice", "Better to have it and not need it..." } },
+      { { "inner_voice", "The liquid glows faintly. Interesting." } },
+    })
+    :emit("item_purchased", { item = "potion", cost = 15 })
+    :jump("after_purchase")
+  
+  yap:registerAll(buy_sword, buy_shield, buy_potion)
 end
 
 function love.update(dt)
@@ -93,7 +193,7 @@ function love.draw()
   love.graphics.rectangle("fill", 0, 0, 800, 50)
   love.graphics.setFont(titleFont)
   love.graphics.setColor(0.9, 0.85, 0.7)
-  love.graphics.print("Bob's Shop", 20, 10)
+  love.graphics.print("Bob's Shop (Mixed: .yap + API)", 20, 10)
   love.graphics.setFont(font)
   love.graphics.setColor(0.7, 0.65, 0.5)
   local sword = HAS_SWORD and "Yes" or "No"
@@ -140,7 +240,6 @@ function love.draw()
     end
   elseif yap:isAwaiting() then
     love.graphics.setColor(0.5, 0.6, 0.5)
-    local event = yap:getAwaitEvent() or "transition"
   elseif yap:isComplete() then
     love.graphics.setColor(0.4, 0.6, 0.4)
     love.graphics.print("Dialogue complete. Press R to restart or Q to quit.", 30, 550)

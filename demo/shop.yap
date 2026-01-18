@@ -70,102 +70,6 @@ set visit_count = visit_count + 1
   * "Leave the shop" -> exit_shop
 [end]
 
-# buy_sword
-[if gold < 30]
-  @bob: "That'll be 30 gold."
-  @inner_voice: "I only have {gold} gold... not enough."
-  @player: "Actually, I don't have enough..."
-  @bob: "No worries, come back when you've got the coin!"
-  -> shop_menu
-[end]
-
-@player: "I'll take that sword."
-[random]
-  * @bob: "Excellent choice! A fine blade, that one."
-  * @bob: "Ah, you've got good taste! That's quality steel."
-  * @bob: "A wise purchase! This blade has seen many battles."
-[end]
-set gold = gold - 30
-set has_sword = true
-set items_bought = items_bought + 1
-@narrator: "Bob hands you a gleaming steel sword."
-[random]
-  * @bob: "30 gold, pleasure doing business!"
-  * @bob: "That's 30 gold. Take care of it!"
-  * @bob: "30 gold changes hands. She's all yours now."
-[end]
-[random]
-  * @inner_voice: "This feels good in my hand."
-  * @inner_voice: "Now I can defend myself properly."
-  * @inner_voice: "A fine weapon indeed."
-[end]
-emit item_purchased { item: "sword", cost: 30 }
--> after_purchase
-
-# buy_shield
-[if gold < 25]
-  @bob: "That shield's 25 gold."
-  @inner_voice: "I'm {gold} gold short... blast."
-  @player: "Hmm, let me think about it..."
-  @bob: "Take your time!"
-  -> shop_menu
-[end]
-
-@player: "I'd like that shield."
-[random]
-  * @bob: "Smart! Protection is important."
-  * @bob: "Good thinking! Can't put a price on safety."
-  * @bob: "Solid oak, reinforced with iron. You won't regret it."
-[end]
-set gold = gold - 25
-set has_shield = true
-set items_bought = items_bought + 1
-@narrator: "You strap the sturdy wooden shield to your arm."
-[random]
-  * @bob: "25 gold, thank you kindly!"
-  * @bob: "That's 25 gold. May it serve you well!"
-  * @bob: "25 gold it is. Stay safe out there!"
-[end]
-[random]
-  * @inner_voice: "I feel safer already."
-  * @inner_voice: "This should block a few blows."
-  * @inner_voice: "Solid and dependable. Just what I needed."
-[end]
-emit item_purchased { item: "shield", cost: 25 }
--> after_purchase
-
-# buy_potion
-[if gold < 15]
-  @bob: "Potions are 15 gold each."
-  @inner_voice: "Can't even afford a potion with {gold} gold..."
-  @player: "Maybe next time."
-  @bob: "They'll be here when you need 'em!"
-  -> shop_menu
-[end]
-
-@player: "One potion, please."
-[random]
-  * @bob: "Wise to be prepared!"
-  * @bob: "Always good to have one of these on hand."
-  * @bob: "Brewed it myself! Well, my cousin did. Same thing."
-[end]
-set gold = gold - 15
-set has_potion = true
-set items_bought = items_bought + 1
-@narrator: "Bob places a small red vial in your hand."
-[random]
-  * @bob: "15 gold. Use it well!"
-  * @bob: "That's 15 gold. Drink it when things get rough!"
-  * @bob: "15 gold, friend. Hope you never need it!"
-[end]
-[random]
-  * @inner_voice: "Could save my life someday."
-  * @inner_voice: "Better to have it and not need it..."
-  * @inner_voice: "The liquid glows faintly. Interesting."
-[end]
-emit item_purchased { item: "potion", cost: 15 }
--> after_purchase
-
 # after_purchase
 @narrator: "You now have {gold} gold remaining."
 
@@ -297,5 +201,3 @@ emit dialogue_complete { visited: true }
 @narrator: "You decide to continue on your way."
 @inner_voice: "Maybe I'll come back later."
 emit left_area {}
-
-

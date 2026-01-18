@@ -3,6 +3,7 @@ Functions.__index = Functions
 
 function Functions.new()
   local self = setmetatable({}, Functions)
+  self.functions = {}
   return self
 end
 

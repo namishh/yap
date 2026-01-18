@@ -169,6 +169,14 @@ function Parser:tokenize(line)
         return {type = "choice"}
     end
 
+    local seqOptionMatch = trimmed:match("^%*:%s*(.*)$")
+    if seqOptionMatch then
+        local option = {type = "seq_option_start"}
+        local weight = seqOptionMatch:match("^%[weight:%s*(%d+)%]")
+        option.weight = weight and tonumber(weight) or 1
+        return option
+    end
+
     local optionMatch = trimmed:match("^%*%s*(.+)$")
     if optionMatch then
         local option = {type = "option"}
@@ -384,6 +392,15 @@ function Parser:parse(content, sourcePath, baseDir)
       end
     elseif token.type == "end" then
       if #blockStack > 0 then
+          local current = blockStack[#blockStack]
+          if current.type == "random" and current.seqNodes then
+              table.insert(current.block.options, {
+                  weight = current.seqWeight,
+                  nodes = current.seqNodes,
+                  line = current.seqLine
+              })
+              current.seqNodes = nil
+          end
           table.remove(blockStack)
       end
     elseif token.type == "once" then
@@ -401,10 +418,38 @@ function Parser:parse(content, sourcePath, baseDir)
       local choiceBlock = { type = "choice_block", options = {}, line = i }
       table.insert(getCurrentNodes(), choiceBlock)
       table.insert(blockStack, {type = "choice", block = choiceBlock, nodes = choiceBlock.options})
+    elseif token.type == "seq_option_start" then
+      if #blockStack > 0 then
+        local current = blockStack[#blockStack]
+        if current.type == "random" then
+            if current.seqNodes then
+                table.insert(current.block.options, {
+                    weight = current.seqWeight,
+                    nodes = current.seqNodes,
+                    line = current.seqLine
+                })
+            end
+            current.seqNodes = {}
+            current.seqWeight = token.weight
+            current.seqLine = i
+            current.nodes = current.seqNodes
+        end
+      end
     elseif token.type == "option" then
       if #blockStack > 0 then
         local current = blockStack[#blockStack]
         if current.type == "random" then
+            if current.seqNodes then
+                table.insert(current.block.options, {
+                    weight = current.seqWeight,
+                    nodes = current.seqNodes,
+                    line = current.seqLine
+                })
+                current.seqNodes = nil
+                current.seqWeight = nil
+                current.seqLine = nil
+                current.nodes = current.block.options
+            end
             table.insert(current.block.options, {
                 weight = token.weight,
                 dialogue = token.dialogue,

@@ -286,6 +286,65 @@ test("parse random block", function()
   T.assertsEqual(2, ast.nodes[1].options[2].weight)
 end)
 
+test("tokenize sequence option start", function()
+  local parser = createParser()
+  local token = parser:tokenize("*:")
+  T.assertsEqual("seq_option_start", token.type)
+  T.assertsEqual(1, token.weight)
+
+  token = parser:tokenize("*: [weight: 3]")
+  T.assertsEqual("seq_option_start", token.type)
+  T.assertsEqual(3, token.weight)
+end)
+
+test("parse random sequence block", function()
+  local parser = createParser()
+  local ast = parser:parse([[
+[random]
+  *:
+    @alice: "Line 1"
+    @bob: "Line 2"
+  *: [weight: 2]
+    @charlie: "Line 3"
+[end]
+]], "test", "") or {}
+  T.assertsEqual(1, #ast.nodes)
+  T.assertsEqual("random_block", ast.nodes[1].type)
+  T.assertsEqual(2, #ast.nodes[1].options)
+  -- First sequence
+  T.assertsEqual(1, ast.nodes[1].options[1].weight)
+  T.assertNotNil(ast.nodes[1].options[1].nodes)
+  T.assertsEqual(2, #ast.nodes[1].options[1].nodes)
+  T.assertsEqual("dialogue", ast.nodes[1].options[1].nodes[1].type)
+  T.assertsEqual("alice", ast.nodes[1].options[1].nodes[1].character)
+  -- Second sequence
+  T.assertsEqual(2, ast.nodes[1].options[2].weight)
+  T.assertNotNil(ast.nodes[1].options[2].nodes)
+  T.assertsEqual(1, #ast.nodes[1].options[2].nodes)
+end)
+
+test("parse mixed single and sequence options", function()
+  local parser = createParser()
+  local ast = parser:parse([[
+[random]
+  * @alice: "Single line"
+  *:
+    @bob: "Sequence 1"
+    @bob: "Sequence 2"
+  * @charlie: "Another single"
+[end]
+]], "test", "") or {}
+  T.assertsEqual(1, #ast.nodes)
+  T.assertsEqual("random_block", ast.nodes[1].type)
+  T.assertsEqual(3, #ast.nodes[1].options)
+  T.assertNotNil(ast.nodes[1].options[1].dialogue)
+  T.assertsEqual(nil, ast.nodes[1].options[1].nodes)
+  T.assertsEqual(nil, ast.nodes[1].options[2].dialogue)
+  T.assertNotNil(ast.nodes[1].options[2].nodes)
+  T.assertsEqual(2, #ast.nodes[1].options[2].nodes)
+  T.assertNotNil(ast.nodes[1].options[3].dialogue)
+end)
+
 test("parse once block", function()
   local parser = createParser()
   local ast = parser:parse([[
