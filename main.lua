@@ -180,10 +180,14 @@ function love.draw()
   love.graphics.setBackgroundColor(bgColor[1], bgColor[2], bgColor[3])
   love.graphics.setColor(0.2, 0.18, 0.25)
   love.graphics.rectangle("fill", 0, 0, 800, 50)
-  love.graphics.setFont(titleFont)
+  if titleFont then
+    love.graphics.setFont(titleFont)
+  end
   love.graphics.setColor(0.9, 0.85, 0.7)
-  love.graphics.print("Bob's Shop (Mixed: .yap + API)", 20, 10)
-  love.graphics.setFont(font)
+  love.graphics.print("Bob's Shop.", 20, 10)
+  if font then
+    love.graphics.setFont(font)
+  end
   love.graphics.setColor(0.7, 0.65, 0.5)
   local sword = HAS_SWORD and "Yes" or "No"
   local shield = HAS_SHIELD and "Yes" or "No"
