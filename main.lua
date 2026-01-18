@@ -1,5 +1,4 @@
 local yap = require("yap")
-
 local dialogueLog = {}
 local maxLog = 15
 local font = nil
@@ -17,64 +16,14 @@ local bgTransitionTime = 0
 local bgTransitionElapsed = 0
 local isTransitioning = false
 
-function love.load()
-  love.window.setTitle("Shop Demo")
-  love.window.setMode(800, 600)
-  font = love.graphics.newFont("demo/DungeonFont.ttf", 18)
-  titleFont = love.graphics.newFont("demo/DungeonFont.ttf", 28)
-  love.graphics.setFont(font)
-  
-  yap:on("on_var_changed", function(data)
-    if data.variable == "gold" then
-      GOLD = data.newValue
-    elseif data.variable == "has_sword" then
-      HAS_SWORD = data.newValue
-    elseif data.variable == "has_shield" then
-      HAS_SHIELD = data.newValue
-    elseif data.variable == "has_potion" then
-      HAS_POTION = data.newValue
-    end
-  end)
-  
-  yap:on("on_line_start", function(data)
-    table.insert(dialogueLog, {
-      speaker = data.character_name or data.character,
-      text = data.text
-    })
-    while #dialogueLog > maxLog do
-      table.remove(dialogueLog, 1)
-    end
-  end)
-  
-  yap:on("exit_transition", function(data)
-    bgStartColor = {bgColor[1], bgColor[2], bgColor[3]}
-    bgTargetColor = {0.03, 0.07, 0.04}
-    bgTransitionTime = data.duration or 2
-    bgTransitionElapsed = 0
-    isTransitioning = true
-  end)
-  
-  local ok, err = yap:load("demo/shop.yap")
-  if not ok then
-    print("ERROR: " .. err)
-    return
-  end
-  
-  addPurchaseLabels()
-  
-  yap:setVar("gold", GOLD)
-  yap:start("enter_shop")
-end
-
-function addPurchaseLabels()
-  
+local addPurchaseLabels = function()
   local buy_sword = yap.label("buy_sword")
     :when(yap.lt("gold", 30), function(b)
       b:say("bob", "That'll be 30 gold.")
       b:say("inner_voice", "I only have {gold} gold... not enough.")
       b:say("player", "Actually, I don't have enough...")
       b:say("bob", "No worries, come back when you've got the coin!")
-      b:jump("shop_menu")  -- jumps back to .yap label
+      b:jump("shop_menu")
     end)
     :say("player", "I'll take that sword.")
     :randomSeq({
@@ -97,10 +46,8 @@ function addPurchaseLabels()
       { { "inner_voice", "A fine weapon indeed." } },
     })
     :emit("item_purchased", { item = "sword", cost = 30 })
-    :jump("after_purchase")  
-  
-  
-  local buy_shield = yap.label("buy_shield")
+    :jump("after_purchase")
+    local buy_shield = yap.label("buy_shield")
     :when(yap.lt("gold", 25), function(b)
       b:say("bob", "That shield's 25 gold.")
       b:say("inner_voice", "I'm {gold} gold short... blast.")
@@ -130,8 +77,8 @@ function addPurchaseLabels()
     })
     :emit("item_purchased", { item = "shield", cost = 25 })
     :jump("after_purchase")
-  
-  local buy_potion = yap.label("buy_potion")
+
+    local buy_potion = yap.label("buy_potion")
     :when(yap.lt("gold", 15), function(b)
       b:say("bob", "Potions are 15 gold each.")
       b:say("inner_voice", "Can't even afford a potion with {gold} gold...")
@@ -161,20 +108,62 @@ function addPurchaseLabels()
     })
     :emit("item_purchased", { item = "potion", cost = 15 })
     :jump("after_purchase")
-  
   yap:registerAll(buy_sword, buy_shield, buy_potion)
 end
 
+function love.load()
+  love.window.setTitle("Shop Demo")
+  yap:setDebug(true)
+  love.window.setMode(800, 600)
+  font = love.graphics.newFont("demo/DungeonFont.ttf", 18)
+  titleFont = love.graphics.newFont("demo/DungeonFont.ttf", 28)
+  love.graphics.setFont(font)
+  yap:on("on_var_changed", function(data)
+    if data.variable == "gold" then
+      GOLD = data.newValue
+    elseif data.variable == "has_sword" then
+      HAS_SWORD = data.newValue
+    elseif data.variable == "has_shield" then
+      HAS_SHIELD = data.newValue
+    elseif data.variable == "has_potion" then
+      HAS_POTION = data.newValue
+    end
+  end)
+  yap:on("on_line_start", function(data)
+    table.insert(dialogueLog, {
+      speaker = data.character_name or data.character,
+      text = data.text
+    })
+    while #dialogueLog > maxLog do
+      table.remove(dialogueLog, 1)
+    end
+  end)
+  yap:on("exit_transition", function(data)
+    bgStartColor = {bgColor[1], bgColor[2], bgColor[3]}
+    bgTargetColor = {0.03, 0.07, 0.04}
+    bgTransitionTime = data.duration or 2
+    bgTransitionElapsed = 0
+    isTransitioning = true
+  end)
+  local ok, err = yap:load("demo/shop.yap")
+  if not ok then
+    print("ERROR: " .. err)
+    return
+  end
+  addPurchaseLabels()
+  yap:setVar("gold", GOLD)
+  yap:start("enter_shop")
+end
+
+
 function love.update(dt)
-  if isTransitioning and bgTargetColor then
+  if isTransitioning and bgTargetColor and bgStartColor then
     bgTransitionElapsed = bgTransitionElapsed + dt
     local t = math.min(bgTransitionElapsed / bgTransitionTime, 1)
     t = t < 0.5 and 2 * t * t or 1 - math.pow(-2 * t + 2, 2) / 2
-    
     bgColor[1] = bgStartColor[1] + (bgTargetColor[1] - bgStartColor[1]) * t
     bgColor[2] = bgStartColor[2] + (bgTargetColor[2] - bgStartColor[2]) * t
     bgColor[3] = bgStartColor[3] + (bgTargetColor[3] - bgStartColor[3]) * t
-    
     if bgTransitionElapsed >= bgTransitionTime then
       isTransitioning = false
       bgColor = {bgTargetColor[1], bgTargetColor[2], bgTargetColor[3]}

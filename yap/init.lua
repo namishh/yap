@@ -15,6 +15,12 @@ local Cond = require(PATH .. "cond")
 
 local Yap = {}
 Yap.__index = Yap
+Yap._debug = false
+
+function Yap:setDebug(enabled)
+  Yap._debug = enabled
+  return self
+end
 
 function Yap.new()
   local self = setmetatable({}, Yap)
@@ -25,7 +31,7 @@ function Yap.new()
   self.functions = Functions.new()
   self.parser = Parser.new()
   self.serializer = Serializer.new(self.state, self.history)
-  self.runtime = Runtime.new(self.signals, self.state, self.history, self.characters, self.functions)
+  self.runtime = Runtime.new(self.signals, self.state, self.history, self.characters, self.functions, function() return Yap._debug end)
   self.loadedFile = nil
   return self
 end
@@ -61,6 +67,7 @@ function Yap:emit(event, data)
 end
 
 function Yap:start(labelName)
+  if Yap._debug then print("[YAP] STARTING:", labelName) end
   if self.runtime:jumpTo(labelName) then
     return self.runtime:advance()
   end
@@ -150,22 +157,17 @@ function Yap:deserialize(data)
 end
 
 -- Programmatic API methods
-
--- Define a variable
 function Yap:defVar(name, value)
   self.state:set(name, value)
   return self
 end
 
--- Define a character
 function Yap:defChar(id, props)
   self.characters:register(id, props)
   return self
 end
 
--- Register a label or chain
 function Yap:register(labelOrChain)
-  -- Initialize AST if not exists
   if not self.runtime.ast then
     self.runtime.ast = {
       type = "root",
@@ -180,8 +182,7 @@ function Yap:register(labelOrChain)
     self.runtime.nodes = self.runtime.ast.nodes
   end
 
-  -- Handle Chain
-  if labelOrChain.build and labelOrChain.labels then
+  if labelOrChain.labels then
     local builtLabels = labelOrChain:build()
     for _, built in ipairs(builtLabels) do
       self:_registerBuiltLabel(built)
@@ -189,42 +190,40 @@ function Yap:register(labelOrChain)
     return self
   end
 
-  -- Handle single Label
   local built = labelOrChain:build()
   self:_registerBuiltLabel(built)
   return self
 end
 
--- Internal: register a built label
 function Yap:_registerBuiltLabel(built)
   local ast = self.runtime.ast
 
-  -- Register variables
+  if not self._apiBarrierAdded and #ast.nodes > 0 then
+    table.insert(ast.nodes, { type = "end_barrier" })
+    self._apiBarrierAdded = true
+  end
+
   for name, value in pairs(built.variables) do
     if not self.state:has(name) then
       self.state:set(name, value)
     end
   end
 
-  -- Register characters
   for id, props in pairs(built.characters) do
     if not self.characters:has(id) then
       self.characters:register(id, props)
     end
   end
 
-  -- Add label node and register in labels table
   local labelNode = { type = "label", name = built.name }
   ast.labels[built.name] = #ast.nodes + 1
   table.insert(ast.nodes, labelNode)
 
-  -- Add all nodes from the label
   for _, node in ipairs(built.nodes) do
     table.insert(ast.nodes, node)
   end
 end
 
--- Register multiple labels/chains
 function Yap:registerAll(...)
   for _, item in ipairs({...}) do
     self:register(item)
@@ -236,10 +235,8 @@ local default = Yap.new()
 
 return setmetatable({
   new = Yap.new,
-  -- Builders
   label = Label.new,
   chain = Chain.new,
-  -- Condition helpers
   eq = Cond.eq,
   neq = Cond.neq,
   gt = Cond.gt,

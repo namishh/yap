@@ -5,7 +5,7 @@ local Eval = require(PATH .. "eval")
 local Runtime = {}
 Runtime.__index = Runtime
 
-function Runtime.new(signals, state, history, characters, functions)
+function Runtime.new(signals, state, history, characters, functions, isDebug)
   local self = setmetatable({}, Runtime)
   self.signals = signals
   self.state = state
@@ -13,6 +13,7 @@ function Runtime.new(signals, state, history, characters, functions)
   self.characters = characters
   self.functions = functions
   self.evaluator = Eval.new(state)
+  self.isDebug = isDebug or function() return false end
 
   self.ast = nil
   self.nodes = {}
@@ -24,6 +25,12 @@ function Runtime.new(signals, state, history, characters, functions)
   self.awaiting = false
   self.awaitEvent = nil
   return self
+end
+
+local function log(self, ...)
+  if self.isDebug() then
+    print(...)
+  end
 end
 
 function Runtime:load(ast)
@@ -56,16 +63,19 @@ end
 
 function Runtime:jumpTo(labelName)
   if not self.ast or not self.ast.labels then
+    log(self, "[YAP] jumpTo: no AST/labels!")
     return false
   end
   local labelIndex = self.ast.labels[labelName]
   if labelIndex then
-    self.position = labelIndex
+    log(self, string.format("[YAP] jumpTo: '%s' -> position %d", labelName, labelIndex + 1))
+    self.position = labelIndex + 1
     self.waitingForChoice = false
     self.complete = false
     self.history:markSeen(labelName)
     return true
   end
+  log(self, "[YAP] jumpTo: label not found:", labelName)
   return false
 end
 
@@ -87,12 +97,20 @@ end
 
 function Runtime:processNode()
   if self.position < 1 or self.position > #self.nodes then
+    log(self, "[YAP] processNode: position out of bounds", self.position, "/", #self.nodes)
     return nil
   end
 
   local node = self.nodes[self.position]
+  log(self, string.format("[YAP] processNode: pos=%d type=%s", self.position, node.type))
 
   if node.type == "label" then
+    log(self, "[YAP]   label:", node.name)
+    return nil
+  elseif node.type == "end_barrier" then
+    log(self, "[YAP]   end_barrier (ending dialogue)")
+    self.complete = true
+    self.signals:emit("on_dialogue_end", {})
     return nil
 
   elseif node.type == "dialogue" then
@@ -106,6 +124,7 @@ function Runtime:processNode()
       portrait_col = node.portrait_col or 0,
       metadata = node.metadata or {}
     }
+    log(self, string.format("[YAP]   dialogue: %s: \"%s\"", node.character, data.text:sub(1,50)))
     self.signals:emit("on_line_start", data)
     return data
 
@@ -131,6 +150,13 @@ function Runtime:processNode()
     return { type = "await", event = node.event }
 
   elseif node.type == "jump" then
+    log(self, "[YAP]   jump to:", node.target, "| clearing callStack (was", #self.callStack, "deep)")
+    if node.target == "end" or node.target == "_end" then
+      log(self, "[YAP]   ending dialogue")
+      self.complete = true
+      self.signals:emit("on_dialogue_end", {})
+      return nil
+    end
     self.callStack = {}
     self.nodes = self.ast.nodes
     self:jumpTo(node.target)
@@ -146,8 +172,10 @@ function Runtime:processNode()
     return nil
 
   elseif node.type == "if_block" then
-    for _, branch in ipairs(node.branches) do
+    log(self, "[YAP]   if_block: checking", #node.branches, "branches")
+    for i, branch in ipairs(node.branches) do
       if branch.condition == nil or self:evalCondition(branch.condition) then
+        log(self, "[YAP]     branch", i, "matched, entering", #branch.nodes, "nodes")
         if #branch.nodes > 0 then
           table.insert(self.callStack, { nodes = self.nodes, position = self.position })
           self.nodes = branch.nodes
@@ -156,6 +184,7 @@ function Runtime:processNode()
         return nil
       end
     end
+    log(self, "[YAP]     no branch matched")
     return nil
 
   elseif node.type == "once_block" then
@@ -170,6 +199,7 @@ function Runtime:processNode()
     return nil
 
   elseif node.type == "random_block" or node.type == "random_seq_block" then
+    log(self, string.format("[YAP]   %s: %d options", node.type, #node.options))
     local totalWeight = 0
     for _, option in ipairs(node.options) do
       totalWeight = totalWeight + (option.weight or 1)
@@ -179,16 +209,18 @@ function Runtime:processNode()
     local cumulative = 0
     local selected = nil
 
-    for _, option in ipairs(node.options) do
+    for i, option in ipairs(node.options) do
       cumulative = cumulative + (option.weight or 1)
       if roll <= cumulative then
         selected = option
+        log(self, string.format("[YAP]     selected option %d (roll=%.2f)", i, roll))
         break
       end
     end
 
     if selected then
       if selected.nodes and #selected.nodes > 0 then
+        log(self, string.format("[YAP]     entering seq with %d nodes", #selected.nodes))
         table.insert(self.callStack, { nodes = self.nodes, position = self.position })
         self.nodes = selected.nodes
         self.position = 0
@@ -204,6 +236,7 @@ function Runtime:processNode()
           portrait_col = selected.dialogue.portrait_col or 0,
           metadata = selected.dialogue.metadata or {}
         }
+        log(self, string.format("[YAP]     random dialogue: %s: \"%s\"", data.character, data.text:sub(1,40)))
         self.signals:emit("on_line_start", data)
         return data
       end
@@ -238,6 +271,7 @@ function Runtime:processNode()
     else
       newValue = node.valueOrFn
     end
+    log(self, string.format("[YAP]   set_api: %s = %s (was %s)", node.variable, tostring(newValue), tostring(oldValue)))
     self.state:set(node.variable, newValue)
     self.signals:emit("on_var_changed", {
       variable = node.variable,
@@ -276,8 +310,9 @@ function Runtime:processNode()
     return nil
 
   elseif node.type == "if_block_api" then
+    log(self, "[YAP]   if_block_api: checking", #node.branches, "branches")
     local stateSnapshot = self.state:getAll()
-    for _, branch in ipairs(node.branches) do
+    for i, branch in ipairs(node.branches) do
       local conditionMet = true
       if branch.condition ~= nil then
         if type(branch.condition) == "function" then
@@ -286,7 +321,9 @@ function Runtime:processNode()
           conditionMet = self:evalCondition(branch.condition)
         end
       end
+      log(self, "[YAP]     branch", i, "condition:", conditionMet)
       if conditionMet then
+        log(self, "[YAP]     entering branch with", #branch.nodes, "nodes, pushing to callStack (now", #self.callStack + 1, "deep)")
         if #branch.nodes > 0 then
           table.insert(self.callStack, { nodes = self.nodes, position = self.position })
           self.nodes = branch.nodes
@@ -295,6 +332,7 @@ function Runtime:processNode()
         return nil
       end
     end
+    log(self, "[YAP]     no branch matched")
     return nil
   end
 
@@ -318,13 +356,16 @@ function Runtime:advance()
   end
 
   self.position = self.position + 1
+  log(self, string.format("[YAP] advance: pos=%d/%d callStack=%d", self.position, #self.nodes, #self.callStack))
 
   while self.position > #self.nodes do
     if #self.callStack > 0 then
       local context = table.remove(self.callStack)
+      log(self, string.format("[YAP]   popping callStack, returning to pos=%d/%d (callStack now %d)", context.position + 1, #context.nodes, #self.callStack))
       self.nodes = context.nodes
       self.position = context.position + 1
     else
+      log(self, "[YAP]   callStack empty, dialogue complete")
       self.complete = true
       self.signals:emit("on_dialogue_end", {})
       return nil
@@ -359,6 +400,7 @@ function Runtime:choose(choiceIndex)
   if choiceIndex < 1 or choiceIndex > #validChoices then return nil end
 
   local chosen = validChoices[choiceIndex]
+  log(self, string.format("[YAP] choose: #%d '%s' -> %s", choiceIndex, chosen.text:sub(1,30), chosen.target or "(no target)"))
   self.signals:emit("on_choice_made", {
     index = choiceIndex,
     text = chosen.text,
@@ -370,7 +412,7 @@ function Runtime:choose(choiceIndex)
 
   if chosen.target then
     self:jumpTo(chosen.target)
-    return self:advance()
+    return self:processNode()
   end
   return self:advance()
 end
