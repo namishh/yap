@@ -1,6 +1,11 @@
-# Yap
+## Yap: Dialogue system for Love2D.
 
-Dialogue system for Love2D. Parses `.yap` files or builds dialogues programmatically. Emits signals. You handle rendering.
+> [!CAUTION]
+> Although I have tried to made this library as general-purpose as possible, this is still a personal library, primarily made for my own projects.
+
+<br>
+
+Parses `.yap` files or builds dialogues programmatically. Emits signals. You handle rendering.
 
 ## Installation
 
